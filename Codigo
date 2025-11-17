@@ -1,0 +1,44 @@
+INICIAR programa
+CREAR lista_de_recetas vacía
+
+REPETIR
+    MOSTRAR menú:
+        1. Agregar receta
+        2. Mostrar todas las recetas
+        3. Buscar receta por ingrediente
+        4. Eliminar receta
+        5. Salir
+
+    LEER opcion
+
+    SI opcion == 1 ENTONCES
+        CREAR nueva_receta
+        PEDIR nombre
+        PEDIR tiempo_de_preparacion
+        PEDIR dificultad
+        PEDIR tipo_platillo
+
+        CREAR lista_ingredientes vacía
+        MIENTRAS usuario no escriba "fin"
+            PEDIR ingrediente
+            AGREGAR ingrediente a lista_ingredientes
+        FIN MIENTRAS
+
+        ASIGNAR lista_ingredientes a nueva_receta
+        AGREGAR nueva_receta a lista_de_recetas
+
+    SI opcion == 2 ENTONCES
+        MOSTRAR cada receta con sus ingredientes
+
+    SI opcion == 3 ENTONCES
+        PEDIR ingrediente_buscado
+        BUSCAR en lista_de_recetas aquellas que contengan ingrediente_buscado
+        MOSTRAR coincidencias
+
+    SI opcion == 4 ENTONCES
+        PEDIR nombre_receta
+        BUSCAR receta y ELIMINAR de lista_de_recetas
+
+HASTA que opcion == 5
+
+FINALIZAR programa
