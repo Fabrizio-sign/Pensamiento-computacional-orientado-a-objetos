@@ -1,2 +1,4 @@
-# Pensamiento-computacional-orientado-a-objetos
-Avance de proyectos
+# Recetario de cocina personal
+Repositorio para la clase de Pensamiento Computacional Para Ingeniería, Estudiante: Iker Fabrizio Hernández Hernández A01715230, Semestre Ago–Dic 2025.
+Este proyecto consiste en un sistema gestor de recetario personal, el cual permite almacenar, organizar y consultar recetas de cocina según los intereses y necesidades del usuario. Lo elegí porque es un proyecto práctico, llamativo y útil en la vida diaria: muchas personas buscan recetas de forma constante, y contar con un sistema que administre ingredientes, tiempos de preparación y tipos de platillos facilita la planificación en la cocina.
+El sistema incluye funcionalidades básicas como registrar nuevas recetas, listar ingredientes, buscar recetas por categoría o por ingrediente, eliminar o editar recetas existentes, y generar recomendaciones según los gustos del usuario o el tipo de comida que desea preparar. Este proyecto integra el uso de listas, estructuras y manejo de archivos, lo que lo convierte en una herramienta didáctica para aplicar conceptos de programación de forma realista y funcional.
