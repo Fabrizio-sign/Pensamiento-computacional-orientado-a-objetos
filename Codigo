@@ -42,3 +42,120 @@ REPETIR
 HASTA que opcion == 5
 
 FINALIZAR programa
+
+
+class Recetario:
+    def __init__(self):
+        self.lista_recetas = []
+    
+    def agregar_receta(self, receta):
+        self.lista_recetas.append(receta)
+    
+    def mostrar_recetas(self):
+        for receta in self.lista_recetas:
+            print(f"Receta: {receta.get_nombre()}")
+            print(f"Tiempo: {receta.get_tiempo_preparacion()} min")
+            print(f"Dificultad: {receta.get_dificultad()}")
+            print("---")
+    
+    def buscar_por_ingrediente(self, ingrediente_buscado):
+        coincidencias = []
+        for receta in self.lista_recetas:
+            if receta.contiene_ingrediente(ingrediente_buscado):
+                coincidencias.append(receta)
+        return coincidencias
+    
+    def eliminar_receta(self, nombre_receta):
+        self.lista_recetas = [r for r in self.lista_recetas if r.get_nombre() != nombre_receta]
+
+class Receta:
+    def __init__(self, nombre="", tiempo_preparacion=0, dificultad="", tipo_platillo=""):
+        self.nombre = nombre
+        self.tiempo_preparacion = tiempo_preparacion
+        self.dificultad = dificultad
+        self.tipo_platillo = tipo_platillo
+        self.lista_ingredientes = []
+        self.pasos_preparacion = []
+    
+    def get_nombre(self):
+        return self.nombre
+    
+    def get_tiempo_preparacion(self):
+        return self.tiempo_preparacion
+    
+    def get_dificultad(self):
+        return self.dificultad
+    
+    def get_tipo_platillo(self):
+        return self.tipo_platillo
+    
+    def get_lista_ingredientes(self):
+        return self.lista_ingredientes
+    
+    def get_pasos_preparacion(self):
+        return self.pasos_preparacion
+    
+    def agregar_ingrediente(self, ingrediente):
+        self.lista_ingredientes.append(ingrediente)
+    
+    def agregar_paso(self, paso):
+        self.pasos_preparacion.append(paso)
+    
+    def contiene_ingrediente(self, ingrediente_buscado):
+        for ingrediente in self.lista_ingredientes:
+            if ingrediente.get_nombre().lower() == ingrediente_buscado.lower():
+                return True
+        return False
+
+class Ingrediente:
+    def __init__(self, nombre="", cantidad=0.0, unidad=""):
+        self.nombre = nombre
+        self.cantidad = cantidad
+        self.unidad = unidad
+    
+    def get_nombre(self):
+        return self.nombre
+    
+    def get_cantidad(self):
+        return self.cantidad
+    
+    def get_unidad(self):
+        return self.unidad
+    
+    def set_cantidad(self, cantidad):
+        self.cantidad = cantidad
+    
+    def set_unidad(self, unidad):
+        self.unidad = unidad
+
+# Ejemplo de uso desde el main
+if __name__ == "__main__":
+    # Crear recetario
+    mi_recetario = Recetario()
+    
+    # Crear una receta
+    receta_ensalada = Receta("Ensalada César", 15, "Fácil", "Entrada")
+    
+    # Agregar ingredientes
+    ingrediente1 = Ingrediente("Lechuga", 200, "gramos")
+    ingrediente2 = Ingrediente("Pollo", 150, "gramos")
+    ingrediente3 = Ingrediente("Aderezo César", 50, "ml")
+    
+    receta_ensalada.agregar_ingrediente(ingrediente1)
+    receta_ensalada.agregar_ingrediente(ingrediente2)
+    receta_ensalada.agregar_ingrediente(ingrediente3)
+    
+    # Agregar pasos de preparación
+    receta_ensalada.agregar_paso("Lavar y cortar la lechuga")
+    receta_ensalada.agregar_paso("Cocinar y desmenuzar el pollo")
+    receta_ensalada.agregar_paso("Mezclar todos los ingredientes")
+    
+    # Agregar receta al recetario
+    mi_recetario.agregar_receta(receta_ensalada)
+    
+    # Mostrar recetas
+    mi_recetario.mostrar_recetas()
+    
+    # Buscar por ingrediente
+    coincidencias = mi_recetario.buscar_por_ingrediente("pollo")
+    print(f"Recetas con pollo: {len(coincidencias)}")
