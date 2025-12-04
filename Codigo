@@ -44,118 +44,209 @@ HASTA que opcion == 5
 FINALIZAR programa
 
 
-class Recetario:
-    def __init__(self):
-        self.lista_recetas = []
-    
-    def agregar_receta(self, receta):
-        self.lista_recetas.append(receta)
-    
-    def mostrar_recetas(self):
-        for receta in self.lista_recetas:
-            print(f"Receta: {receta.get_nombre()}")
-            print(f"Tiempo: {receta.get_tiempo_preparacion()} min")
-            print(f"Dificultad: {receta.get_dificultad()}")
-            print("---")
-    
-    def buscar_por_ingrediente(self, ingrediente_buscado):
-        coincidencias = []
-        for receta in self.lista_recetas:
-            if receta.contiene_ingrediente(ingrediente_buscado):
-                coincidencias.append(receta)
-        return coincidencias
-    
-    def eliminar_receta(self, nombre_receta):
-        self.lista_recetas = [r for r in self.lista_recetas if r.get_nombre() != nombre_receta]
+#include <iostream>
+#include <string>
+#include <vector>
+using namespace std;
 
-class Receta:
-    def __init__(self, nombre="", tiempo_preparacion=0, dificultad="", tipo_platillo=""):
-        self.nombre = nombre
-        self.tiempo_preparacion = tiempo_preparacion
-        self.dificultad = dificultad
-        self.tipo_platillo = tipo_platillo
-        self.lista_ingredientes = []
-        self.pasos_preparacion = []
+// ========== COMPOSICIÓN: Ingrediente ==========
+class Ingrediente {
+private:
+    string nombre;
+    float cantidad;
+    string unidad;
+public:
+    Ingrediente(string n = "", float c = 0, string u = "") 
+        : nombre(n), cantidad(c), unidad(u) {}
     
-    def get_nombre(self):
-        return self.nombre
+    string getNombre() const { return nombre; }
+    float getCantidad() const { return cantidad; }
     
-    def get_tiempo_preparacion(self):
-        return self.tiempo_preparacion
-    
-    def get_dificultad(self):
-        return self.dificultad
-    
-    def get_tipo_platillo(self):
-        return self.tipo_platillo
-    
-    def get_lista_ingredientes(self):
-        return self.lista_ingredientes
-    
-    def get_pasos_preparacion(self):
-        return self.pasos_preparacion
-    
-    def agregar_ingrediente(self, ingrediente):
-        self.lista_ingredientes.append(ingrediente)
-    
-    def agregar_paso(self, paso):
-        self.pasos_preparacion.append(paso)
-    
-    def contiene_ingrediente(self, ingrediente_buscado):
-        for ingrediente in self.lista_ingredientes:
-            if ingrediente.get_nombre().lower() == ingrediente_buscado.lower():
-                return True
-        return False
+    void mostrar() const {
+        cout << "  - " << cantidad << " " << unidad << " de " << nombre << endl;
+    }
+};
 
-class Ingrediente:
-    def __init__(self, nombre="", cantidad=0.0, unidad=""):
-        self.nombre = nombre
-        self.cantidad = cantidad
-        self.unidad = unidad
+// ========== HERENCIA: Jerarquía de Recetas ==========
+class Receta {
+protected:
+    string nombre;
+    int tiempo;
+    string dificultad;
+    vector<Ingrediente*> ingredientes;  // COMPOSICIÓN
+public:
+    Receta(string n = "", int t = 0, string d = "") 
+        : nombre(n), tiempo(t), dificultad(d) {}
     
-    def get_nombre(self):
-        return self.nombre
+    virtual ~Receta() {
+        for (auto ing : ingredientes) delete ing;
+    }
     
-    def get_cantidad(self):
-        return self.cantidad
+    void agregarIngrediente(Ingrediente* ing) {
+        ingredientes.push_back(ing);
+    }
     
-    def get_unidad(self):
-        return self.unidad
+    bool tieneIngrediente(string buscado) const {
+        for (auto ing : ingredientes)
+            if (ing->getNombre() == buscado) return true;
+        return false;
+    }
     
-    def set_cantidad(self, cantidad):
-        self.cantidad = cantidad
+    virtual string getTipo() const = 0;  // Clase abstracta
     
-    def set_unidad(self, unidad):
-        self.unidad = unidad
+    void mostrar() const {
+        cout << "\n" << nombre << " [" << getTipo() << "]" << endl;
+        cout << "Tiempo: " << tiempo << "min, Dificultad: " << dificultad << endl;
+        cout << "Ingredientes:" << endl;
+        for (auto ing : ingredientes) ing->mostrar();
+    }
+};
 
-# Ejemplo de uso desde el main
-if __name__ == "__main__":
-    # Crear recetario
-    mi_recetario = Recetario()
+class RecetaCocina : public Receta {
+private:
+    int temperatura;
+public:
+    RecetaCocina(string n, int t, string d, int temp) 
+        : Receta(n, t, d), temperatura(temp) {}
     
-    # Crear una receta
-    receta_ensalada = Receta("Ensalada César", 15, "Fácil", "Entrada")
+    string getTipo() const override { return "Cocina"; }
     
-    # Agregar ingredientes
-    ingrediente1 = Ingrediente("Lechuga", 200, "gramos")
-    ingrediente2 = Ingrediente("Pollo", 150, "gramos")
-    ingrediente3 = Ingrediente("Aderezo César", 50, "ml")
+    void mostrar() const {
+        Receta::mostrar();
+        cout << "Temperatura: " << temperatura << "°C" << endl;
+    }
+};
+
+class RecetaHorneado : public Receta {
+private:
+    int tiempoHorno;
+public:
+    RecetaHorneado(string n, int t, string d, int th) 
+        : Receta(n, t, d), tiempoHorno(th) {}
     
-    receta_ensalada.agregar_ingrediente(ingrediente1)
-    receta_ensalada.agregar_ingrediente(ingrediente2)
-    receta_ensalada.agregar_ingrediente(ingrediente3)
+    string getTipo() const override { return "Horneado"; }
     
-    # Agregar pasos de preparación
-    receta_ensalada.agregar_paso("Lavar y cortar la lechuga")
-    receta_ensalada.agregar_paso("Cocinar y desmenuzar el pollo")
-    receta_ensalada.agregar_paso("Mezclar todos los ingredientes")
+    void mostrar() const {
+        Receta::mostrar();
+        cout << "Horneado: " << tiempoHorno << "min" << endl;
+    }
+};
+
+// ========== COMPOSICIÓN: Recetario ==========
+class Recetario {
+private:
+    string nombre;
+    vector<Receta*> recetas;  // COMPOSICIÓN
+public:
+    Recetario(string n) : nombre(n) {}
     
-    # Agregar receta al recetario
-    mi_recetario.agregar_receta(receta_ensalada)
+    ~Recetario() {
+        for (auto r : recetas) delete r;
+    }
     
-    # Mostrar recetas
-    mi_recetario.mostrar_recetas()
+    void agregarReceta(Receta* r) {
+        recetas.push_back(r);
+    }
     
-    # Buscar por ingrediente
-    coincidencias = mi_recetario.buscar_por_ingrediente("pollo")
-    print(f"Recetas con pollo: {len(coincidencias)}")
+    void mostrar() const {
+        cout << "\n=== " << nombre << " ===" << endl;
+        for (auto r : recetas) r->mostrar();
+    }
+    
+    vector<Receta*> buscarPorIngrediente(string ing) const {
+        vector<Receta*> resultado;
+        for (auto r : recetas)
+            if (r->tieneIngrediente(ing)) resultado.push_back(r);
+        return resultado;
+    }
+    
+    int getCantidad() const { return recetas.size(); }
+    string getNombre() const { return nombre; }
+};
+
+// ========== AGREGACIÓN: Chef ==========
+class Chef {
+private:
+    string nombre;
+    vector<Recetario*> recetarios;  // AGREGACIÓN (no es dueño)
+public:
+    Chef(string n) : nombre(n) {}
+    
+    void trabajarCon(Recetario* r) {
+        recetarios.push_back(r);
+        cout << "Chef " << nombre << " ahora trabaja con: " << r->getNombre() << endl;
+    }
+    
+    Receta* crearReceta(string tipo) {
+        cout << "\nChef " << nombre << " crea una receta de tipo: " << tipo << endl;
+        if (tipo == "horneado") return new RecetaHorneado("Especial del Chef", 60, "Media", 40);
+        else return new RecetaCocina("Especial del Chef", 45, "Media", 180);
+    }
+    
+    void mostrarTrabajo() const {
+        cout << "\nChef " << nombre << " trabaja con " 
+             << recetarios.size() << " recetarios:" << endl;
+        for (auto r : recetarios)
+            cout << "  - " << r->getNombre() << " (" << r->getCantidad() << " recetas)" << endl;
+    }
+};
+
+// ========== PROGRAMA PRINCIPAL ==========
+int main() {
+    cout << "=== SISTEMA DE RECETAS C++ ===\n";
+    
+    // 1. DEMOSTRACIÓN DE COMPOSICIÓN
+    cout << "\n1. CREANDO RECETARIO (Composición)..." << endl;
+    Recetario* familiar = new Recetario("Recetario Familiar");
+    
+    // Crear recetas con herencia
+    Receta* lasagna = new RecetaHorneado("Lasagna", 90, "Media", 45);
+    lasagna->agregarIngrediente(new Ingrediente("Pasta", 250, "g"));
+    lasagna->agregarIngrediente(new Ingrediente("Carne", 500, "g"));
+    lasagna->agregarIngrediente(new Ingrediente("Queso", 200, "g"));
+    
+    Receta* sopa = new RecetaCocina("Sopa de Tomate", 40, "Fácil", 100);
+    sopa->agregarIngrediente(new Ingrediente("Tomates", 6, "unid"));
+    sopa->agregarIngrediente(new Ingrediente("Cebolla", 1, "unid"));
+    
+    // Agregar al recetario (composición)
+    familiar->agregarReceta(lasagna);
+    familiar->agregarReceta(sopa);
+    
+    // Mostrar recetario
+    familiar->mostrar();
+    
+    // 2. DEMOSTRACIÓN DE AGREGACIÓN
+    cout << "\n2. AGREGACIÓN: Chef trabaja con recetarios..." << endl;
+    Chef* chef = new Chef("Marco");
+    chef->trabajarCon(familiar);  // Chef usa el recetario, pero no es dueño
+    
+    // Chef crea una receta especial
+    Receta* especial = chef->crearReceta("horneado");
+    especial->agregarIngrediente(new Ingrediente("Ingrediente Secreto", 100, "g"));
+    familiar->agregarReceta(especial);
+    
+    chef->mostrarTrabajo();
+    
+    // 3. DEMOSTRACIÓN DE HERENCIA Y POLIMORFISMO
+    cout << "\n3. HERENCIA: Buscando por ingrediente..." << endl;
+    auto recetasConQueso = familiar->buscarPorIngrediente("Queso");
+    cout << "Recetas con queso: " << recetasConQueso.size() << endl;
+    
+    // 4. MOSTRAR TODAS LAS RECETAS (polimorfismo)
+    cout << "\n4. LISTA COMPLETA DE RECETAS:" << endl;
+    familiar->mostrar();
+    
+    // 5. LIMPIEZA
+    cout << "\n5. LIMPIANDO MEMORIA..." << endl;
+    
+    // NOTA: No eliminamos 'especial' porque ahora es parte del recetario
+    // El recetario lo eliminará en su destructor
+    
+    delete chef;      // Chef se elimina, pero los recetarios siguen
+    delete familiar;  // Recetario elimina todas sus recetas (composición)
+    
+    cout << "\n=== FIN DEL PROGRAMA ===" << endl;
+    
+    return 0;
+}
