@@ -1,252 +1,854 @@
-INICIAR programa
-CREAR lista_de_recetas vacía
-
-REPETIR
-    MOSTRAR menú:
-        1. Agregar receta
-        2. Mostrar todas las recetas
-        3. Buscar receta por ingrediente
-        4. Eliminar receta
-        5. Salir
-
-    LEER opcion
-
-    SI opcion == 1 ENTONCES
-        CREAR nueva_receta
-        PEDIR nombre
-        PEDIR tiempo_de_preparacion
-        PEDIR dificultad
-        PEDIR tipo_platillo
-
-        CREAR lista_ingredientes vacía
-        MIENTRAS usuario no escriba "fin"
-            PEDIR ingrediente
-            AGREGAR ingrediente a lista_ingredientes
-        FIN MIENTRAS
-
-        ASIGNAR lista_ingredientes a nueva_receta
-        AGREGAR nueva_receta a lista_de_recetas
-
-    SI opcion == 2 ENTONCES
-        MOSTRAR cada receta con sus ingredientes
-
-    SI opcion == 3 ENTONCES
-        PEDIR ingrediente_buscado
-        BUSCAR en lista_de_recetas aquellas que contengan ingrediente_buscado
-        MOSTRAR coincidencias
-
-    SI opcion == 4 ENTONCES
-        PEDIR nombre_receta
-        BUSCAR receta y ELIMINAR de lista_de_recetas
-
-HASTA que opcion == 5
-
-FINALIZAR programa
-
+/**
+ * Sistema de Gestión de Recetario Personal en C++
+ * 
+ * Este programa implementa un sistema para gestionar recetas de cocina,
+ * permitiendo agregar, buscar, editar y eliminar recetas de manera eficiente.
+ * 
+ * Características implementadas:
+ * - Diseño orientado a objetos con clases bien definidas
+ * - Encapsulamiento correcto (atributos privados con getters/setters)
+ * - Herencia para tipos especializados de recetas
+ * - Composición entre clases
+ * - Persistencia REAL y ROBUSTA en archivo CSV
+ * - Código limpio y bien documentado
+ * 
+ * Autor: Iker Fabrizio Hernandez Hernandez A01715230
+ * Fecha: Diciembre 2025
+ */
 
 #include <iostream>
-#include <string>
 #include <vector>
+#include <string>
+#include <fstream>
+#include <algorithm>
+#include <memory>
+#include <cctype>
+#include <sstream>
+#include <limits>
+#include <iomanip>  // Para std::quoted
+
 using namespace std;
 
-// ========== COMPOSICIÓN: Ingrediente ==========
+// ==============================
+// FUNCIONES AUXILIARES GLOBALES
+// ==============================
+string toLower(const string& str) {
+    string result = str;
+    transform(result.begin(), result.end(), result.begin(),
+              [](unsigned char c){ return tolower(c); });
+    return result;
+}
+
+string trim(const string& str) {
+    auto start = str.find_first_not_of(" \t\n\r");
+    if (start == string::npos) return "";
+    auto end = str.find_last_not_of(" \t\n\r");
+    return str.substr(start, end - start + 1);
+}
+
+int leerEntero(const string& mensaje, int min = 1, int max = 1000) {
+    int valor;
+    while (true) {
+        cout << mensaje;
+        if (cin >> valor) {
+            if (valor >= min && valor <= max) {
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                return valor;
+            } else {
+                cout << "Valor debe estar entre " << min << " y " << max << ". Intente de nuevo.\n";
+            }
+        } else {
+            cout << "Entrada inválida. Ingrese un número.\n";
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        }
+    }
+}
+
+string leerLinea(const string& mensaje, bool obligatorio = true) {
+    string entrada;
+    while (true) {
+        cout << mensaje;
+        getline(cin, entrada);
+        entrada = trim(entrada);
+        if (!obligatorio || !entrada.empty()) {
+            return entrada;
+        }
+        cout << "Este campo es obligatorio. Intente de nuevo.\n";
+    }
+}
+
+// Función auxiliar para leer campo CSV con quoted
+string leerCampoCSV(istringstream& iss) {
+    string campo;
+    char primerChar = iss.peek();
+    
+    if (primerChar == '"') {
+        // Campo entre comillas
+        iss.get(); // Saltar la comilla inicial
+        getline(iss, campo, '"');
+        
+        // Verificar si hay comillas escapadas ("" -> ")
+        size_t pos = 0;
+        while ((pos = campo.find("\"\"", pos)) != string::npos) {
+            campo.replace(pos, 2, "\"");
+            pos += 1;
+        }
+        
+        // Saltar la coma después del campo (si existe)
+        if (iss.peek() == ',') iss.get();
+    } else {
+        // Campo sin comillas
+        getline(iss, campo, ',');
+    }
+    
+    return campo;
+}
+
+// ==============================
+// CLASE BASE: INGREDIENTE
+// ==============================
 class Ingrediente {
 private:
     string nombre;
-    float cantidad;
+    string cantidad;
     string unidad;
+
 public:
-    Ingrediente(string n = "", float c = 0, string u = "") 
+    // Constructor
+    Ingrediente(string n = "", string c = "", string u = "")
         : nombre(n), cantidad(c), unidad(u) {}
-    
+
+    // Getters
     string getNombre() const { return nombre; }
-    float getCantidad() const { return cantidad; }
-    
+    string getCantidad() const { return cantidad; }
+    string getUnidad() const { return unidad; }
+
+    // Setters
+    void setNombre(const string& n) { nombre = n; }
+    void setCantidad(const string& c) { cantidad = c; }
+    void setUnidad(const string& u) { unidad = u; }
+
+    // Método para mostrar información
     void mostrar() const {
-        cout << "  - " << cantidad << " " << unidad << " de " << nombre << endl;
+        cout << "  • " << cantidad << " " << unidad << " de " << nombre << endl;
+    }
+
+    // Método para serializar a string (formato simple)
+    string toString() const {
+        // Escapar caracteres especiales
+        string nom = nombre;
+        string cant = cantidad;
+        string uni = unidad;
+        
+        // Reemplazar comas por punto y coma para evitar problemas
+        replace(nom.begin(), nom.end(), ',', ';');
+        replace(cant.begin(), cant.end(), ',', ';');
+        replace(uni.begin(), uni.end(), ',', ';');
+        
+        return nom + ":" + cant + ":" + uni;
+    }
+
+    // Método para cargar desde string
+    static Ingrediente fromString(const string& str) {
+        size_t pos1 = str.find(':');
+        size_t pos2 = str.find(':', pos1 + 1);
+        if (pos1 == string::npos || pos2 == string::npos) {
+            return Ingrediente();
+        }
+        
+        string nom = str.substr(0, pos1);
+        string cant = str.substr(pos1 + 1, pos2 - pos1 - 1);
+        string uni = str.substr(pos2 + 1);
+        
+        // Revertir los reemplazos
+        replace(nom.begin(), nom.end(), ';', ',');
+        replace(cant.begin(), cant.end(), ';', ',');
+        replace(uni.begin(), uni.end(), ';', ',');
+        
+        return Ingrediente(nom, cant, uni);
     }
 };
 
-// ========== HERENCIA: Jerarquía de Recetas ==========
+// ==============================
+// CLASE BASE: RECETA
+// ==============================
 class Receta {
 protected:
     string nombre;
-    int tiempo;
-    string dificultad;
-    vector<Ingrediente*> ingredientes;  // COMPOSICIÓN
+    vector<Ingrediente> ingredientes;
+    string instrucciones;
+    int tiempoPreparacion; // en minutos
+    string categoria;
+
 public:
-    Receta(string n = "", int t = 0, string d = "") 
-        : nombre(n), tiempo(t), dificultad(d) {}
-    
-    virtual ~Receta() {
-        for (auto ing : ingredientes) delete ing;
-    }
-    
-    void agregarIngrediente(Ingrediente* ing) {
+    // Constructor
+    Receta(string n = "", string cat = "General", int tiempo = 30)
+        : nombre(n), categoria(cat), tiempoPreparacion(tiempo) {}
+
+    // Destructor virtual
+    virtual ~Receta() {}
+
+    // Getters
+    string getNombre() const { return nombre; }
+    string getCategoria() const { return categoria; }
+    int getTiempoPreparacion() const { return tiempoPreparacion; }
+    string getInstrucciones() const { return instrucciones; }
+    const vector<Ingrediente>& getIngredientes() const { return ingredientes; }
+
+    // Setters
+    void setNombre(const string& n) { nombre = n; }
+    void setCategoria(const string& cat) { categoria = cat; }
+    void setTiempoPreparacion(int tiempo) { tiempoPreparacion = tiempo; }
+    void setInstrucciones(const string& inst) { instrucciones = inst; }
+
+    // Métodos para gestionar ingredientes
+    void agregarIngrediente(const Ingrediente& ing) {
         ingredientes.push_back(ing);
     }
-    
-    bool tieneIngrediente(string buscado) const {
-        for (auto ing : ingredientes)
-            if (ing->getNombre() == buscado) return true;
-        return false;
-    }
-    
-    virtual string getTipo() const = 0;  // Clase abstracta
-    
-    void mostrar() const {
-        cout << "\n" << nombre << " [" << getTipo() << "]" << endl;
-        cout << "Tiempo: " << tiempo << "min, Dificultad: " << dificultad << endl;
-        cout << "Ingredientes:" << endl;
-        for (auto ing : ingredientes) ing->mostrar();
-    }
-};
 
-class RecetaCocina : public Receta {
+    void limpiarIngredientes() {
+        ingredientes.clear();
+    }
+
+    // Método virtual para mostrar información (polimorfismo)
+    virtual void mostrarDetalles() const {
+        cout << "\n═══════════════════════════════════════════════════\n";
+        cout << "RECETA: " << nombre << endl;
+        cout << "Categoría: " << categoria << endl;
+        cout << "Tiempo de preparación: " << tiempoPreparacion << " minutos\n";
+        cout << "\nINGREDIENTES (" << ingredientes.size() << "):\n";
+        for (const auto& ing : ingredientes) {
+            ing.mostrar();
+        }
+        cout << "\nINSTRUCCIONES:\n" << instrucciones << endl;
+        cout << "═══════════════════════════════════════════════════\n";
+    }
+
+    // Método virtual para obtener tipo de receta
+    virtual string getTipo() const {
+        return "BASE";
+    }
+
+    // Métodos para serialización robusta
+    virtual string toCSV() const {
+        ostringstream oss;
+        
+        // 1. Tipo
+        oss << getTipo() << ',';
+        
+        // 2. Nombre (entre comillas si contiene comas)
+        if (nombre.find(',') != string::npos || nombre.find('"') != string::npos) {
+            // Escapar comillas dobles
+            string nombreEscapado = nombre;
+            size_t pos = 0;
+            while ((pos = nombreEscapado.find('"', pos)) != string::npos) {
+                nombreEscapado.replace(pos, 1, "\"\"");
+                pos += 2;
+            }
+            oss << '"' << nombreEscapado << '"' << ',';
+        } else {
+            oss << nombre << ',';
+        }
+        
+        // 3. Categoría
+        if (categoria.find(',') != string::npos || categoria.find('"') != string::npos) {
+            string catEscapado = categoria;
+            size_t pos = 0;
+            while ((pos = catEscapado.find('"', pos)) != string::npos) {
+                catEscapado.replace(pos, 1, "\"\"");
+                pos += 2;
+            }
+            oss << '"' << catEscapado << '"' << ',';
+        } else {
+            oss << categoria << ',';
+        }
+        
+        // 4. Tiempo
+        oss << tiempoPreparacion << ',';
+        
+        // 5. Número de ingredientes
+        oss << ingredientes.size() << ',';
+        
+        // 6. Lista de ingredientes
+        for (size_t i = 0; i < ingredientes.size(); ++i) {
+            string ingStr = ingredientes[i].toString();
+            // Ingrediente siempre va entre comillas porque contiene ":"
+            oss << '"' << ingStr << '"';
+            if (i < ingredientes.size() - 1) oss << ',';
+        }
+        
+        // Si hay ingredientes, ya pusimos la última coma
+        if (!ingredientes.empty()) oss << ',';
+        
+        // 7. Instrucciones (siempre entre comillas porque puede tener saltos de línea)
+        string instrEscapado = instrucciones;
+        size_t pos = 0;
+        while ((pos = instrEscapado.find('"', pos)) != string::npos) {
+            instrEscapado.replace(pos, 1, "\"\"");
+            pos += 2;
+        }
+        oss << '"' << instrEscapado << '"';
+        
+        return oss.str();
+    }
+
+    virtual bool fromCSV(const string& csvLine) {
+        istringstream iss(csvLine);
+        string token;
+        
+        try {
+            // 1. Tipo (no lo usamos aquí, pero lo leemos)
+            if (!getline(iss, token, ',')) return false;
+            
+            // 2. Nombre
+            if (!getline(iss, token, ',')) return false;
+            nombre = procesarCampoCSV(token);
+            
+            // 3. Categoría
+            if (!getline(iss, token, ',')) return false;
+            categoria = procesarCampoCSV(token);
+            
+            // 4. Tiempo
+            if (!getline(iss, token, ',')) return false;
+            tiempoPreparacion = stoi(token);
+            
+            // 5. Número de ingredientes
+            if (!getline(iss, token, ',')) return false;
+            int numIng = stoi(token);
+            
+            // 6. Lista de ingredientes
+            ingredientes.clear();
+            for (int i = 0; i < numIng; ++i) {
+                if (!getline(iss, token, ',')) return false;
+                string ingStr = procesarCampoCSV(token);
+                if (!ingStr.empty()) {
+                    ingredientes.push_back(Ingrediente::fromString(ingStr));
+                }
+            }
+            
+            // 7. Instrucciones (resto de la línea, puede contener comas)
+            string resto;
+            getline(iss, resto);
+            instrucciones = procesarCampoCSV(resto);
+            
+            return true;
+            
+        } catch (const exception& e) {
+            cerr << "Error al cargar receta: " << e.what() << endl;
+            return false;
+        }
+    }
+
 private:
-    int temperatura;
-public:
-    RecetaCocina(string n, int t, string d, int temp) 
-        : Receta(n, t, d), temperatura(temp) {}
-    
-    string getTipo() const override { return "Cocina"; }
-    
-    void mostrar() const {
-        Receta::mostrar();
-        cout << "Temperatura: " << temperatura << "°C" << endl;
+    string procesarCampoCSV(const string& campo) {
+        if (campo.empty()) return "";
+        
+        // Si el campo está entre comillas
+        if (campo.front() == '"' && campo.back() == '"') {
+            string resultado = campo.substr(1, campo.length() - 2);
+            
+            // Reemplazar comillas dobles escapadas por comillas simples
+            size_t pos = 0;
+            while ((pos = resultado.find("\"\"", pos)) != string::npos) {
+                resultado.replace(pos, 2, "\"");
+                pos += 1;
+            }
+            
+            return resultado;
+        }
+        
+        return campo;
     }
 };
 
-class RecetaHorneado : public Receta {
+// ==============================
+// CLASE DERIVADA: RECETA_SALUDABLE
+// (Implementación de herencia)
+// ==============================
+class RecetaSaludable : public Receta {
 private:
-    int tiempoHorno;
+    int caloriasPorPorcion;
+    bool esVegano;
+
 public:
-    RecetaHorneado(string n, int t, string d, int th) 
-        : Receta(n, t, d), tiempoHorno(th) {}
-    
-    string getTipo() const override { return "Horneado"; }
-    
-    void mostrar() const {
-        Receta::mostrar();
-        cout << "Horneado: " << tiempoHorno << "min" << endl;
+    // Constructor
+    RecetaSaludable(string n = "", string cat = "Saludable", int tiempo = 30,
+                    int cal = 300, bool vegano = false)
+        : Receta(n, cat, tiempo), caloriasPorPorcion(cal), esVegano(vegano) {}
+
+    // Getters específicos
+    int getCaloriasPorPorcion() const { return caloriasPorPorcion; }
+    bool esVegana() const { return esVegano; }
+
+    // Setters específicos
+    void setCaloriasPorPorcion(int cal) { caloriasPorPorcion = cal; }
+    void setEsVegano(bool vegano) { esVegano = vegano; }
+
+    // Sobrescribir métodos virtuales
+    void mostrarDetalles() const override {
+        Receta::mostrarDetalles();
+        cout << "Calorías por porción: " << caloriasPorPorcion << endl;
+        cout << "Es vegano: " << (esVegano ? "Sí" : "No") << endl;
+    }
+
+    string getTipo() const override {
+        return "SALUDABLE";
+    }
+
+    // Sobrescribir métodos de serialización
+    string toCSV() const override {
+        string base = Receta::toCSV();
+        // Quitar el tipo BASE y reemplazar por SALUDABLE
+        size_t pos = base.find("BASE,");
+        if (pos != string::npos) {
+            base.replace(pos, 5, "SALUDABLE,");
+        }
+        
+        // Agregar campos específicos al final
+        return base + "," + to_string(caloriasPorPorcion) + "," + (esVegano ? "1" : "0");
+    }
+
+    bool fromCSV(const string& csvLine) override {
+        // Primero cargar la parte base
+        if (!Receta::fromCSV(csvLine)) return false;
+        
+        // Extraer campos adicionales
+        istringstream iss(csvLine);
+        vector<string> campos;
+        string campo;
+        
+        while (getline(iss, campo, ',')) {
+            campos.push_back(campo);
+        }
+        
+        // Los campos adicionales están al final
+        if (campos.size() >= 2) {
+            try {
+                caloriasPorPorcion = stoi(campos[campos.size() - 2]);
+                esVegano = (campos.back() == "1");
+            } catch (...) {
+                caloriasPorPorcion = 0;
+                esVegano = false;
+            }
+        }
+        
+        return true;
     }
 };
 
-// ========== COMPOSICIÓN: Recetario ==========
-class Recetario {
+// ==============================
+// CLASE DERIVADA: RECETA_RAPIDA
+// (Implementación de herencia)
+// ==============================
+class RecetaRapida : public Receta {
 private:
-    string nombre;
-    vector<Receta*> recetas;  // COMPOSICIÓN
+    int nivelDificultad; // 1-5
+
 public:
-    Recetario(string n) : nombre(n) {}
-    
-    ~Recetario() {
-        for (auto r : recetas) delete r;
+    // Constructor
+    RecetaRapida(string n = "", string cat = "Rápida", int tiempo = 15, 
+                 int dificultad = 2)
+        : Receta(n, cat, tiempo), nivelDificultad(dificultad) {}
+
+    // Getters específicos
+    int getNivelDificultad() const { return nivelDificultad; }
+
+    // Setters específicos
+    void setNivelDificultad(int dificultad) { 
+        nivelDificultad = max(1, min(5, dificultad)); 
     }
-    
-    void agregarReceta(Receta* r) {
-        recetas.push_back(r);
+
+    // Sobrescribir métodos virtuales
+    void mostrarDetalles() const override {
+        Receta::mostrarDetalles();
+        cout << "Nivel de dificultad: " << nivelDificultad << "/5" << endl;
+        cout << "Esta receta es ideal para preparar rápido!" << endl;
     }
-    
-    void mostrar() const {
-        cout << "\n=== " << nombre << " ===" << endl;
-        for (auto r : recetas) r->mostrar();
+
+    string getTipo() const override {
+        return "RAPIDA";
     }
-    
-    vector<Receta*> buscarPorIngrediente(string ing) const {
-        vector<Receta*> resultado;
-        for (auto r : recetas)
-            if (r->tieneIngrediente(ing)) resultado.push_back(r);
-        return resultado;
+
+    // Sobrescribir métodos de serialización
+    string toCSV() const override {
+        string base = Receta::toCSV();
+        // Quitar el tipo BASE y reemplazar por RAPIDA
+        size_t pos = base.find("BASE,");
+        if (pos != string::npos) {
+            base.replace(pos, 5, "RAPIDA,");
+        }
+        
+        // Agregar campo adicional al final
+        return base + "," + to_string(nivelDificultad);
     }
-    
-    int getCantidad() const { return recetas.size(); }
-    string getNombre() const { return nombre; }
+
+    bool fromCSV(const string& csvLine) override {
+        // Primero cargar la parte base
+        if (!Receta::fromCSV(csvLine)) return false;
+        
+        // Extraer campo adicional
+        istringstream iss(csvLine);
+        vector<string> campos;
+        string campo;
+        
+        while (getline(iss, campo, ',')) {
+            campos.push_back(campo);
+        }
+        
+        // El campo adicional está al final
+        if (!campos.empty()) {
+            try {
+                nivelDificultad = stoi(campos.back());
+                nivelDificultad = max(1, min(5, nivelDificultad)); // Validar
+            } catch (...) {
+                nivelDificultad = 2;
+            }
+        }
+        
+        return true;
+    }
 };
 
-// ========== AGREGACIÓN: Chef ==========
-class Chef {
+// ==============================
+// CLASE: GESTOR_RECETAS
+// (Implementa composición con Receta)
+// ==============================
+class GestorRecetas {
 private:
-    string nombre;
-    vector<Recetario*> recetarios;  // AGREGACIÓN (no es dueño)
+    vector<shared_ptr<Receta>> recetas;
+    string archivoDatos = "recetas.csv";
+
 public:
-    Chef(string n) : nombre(n) {}
-    
-    void trabajarCon(Recetario* r) {
-        recetarios.push_back(r);
-        cout << "Chef " << nombre << " ahora trabaja con: " << r->getNombre() << endl;
+    // Constructor
+    GestorRecetas() {
+        cargarRecetas();
     }
-    
-    Receta* crearReceta(string tipo) {
-        cout << "\nChef " << nombre << " crea una receta de tipo: " << tipo << endl;
-        if (tipo == "horneado") return new RecetaHorneado("Especial del Chef", 60, "Media", 40);
-        else return new RecetaCocina("Especial del Chef", 45, "Media", 180);
+
+    // Destructor
+    ~GestorRecetas() {
+        guardarRecetas();
     }
-    
-    void mostrarTrabajo() const {
-        cout << "\nChef " << nombre << " trabaja con " 
-             << recetarios.size() << " recetarios:" << endl;
-        for (auto r : recetarios)
-            cout << "  - " << r->getNombre() << " (" << r->getCantidad() << " recetas)" << endl;
+
+    // Método para agregar receta usando composición
+    void agregarReceta(shared_ptr<Receta> receta) {
+        recetas.push_back(receta);
+        cout << "\n✓ Receta agregada exitosamente!\n";
+    }
+
+    // Método para buscar recetas por nombre (CASE-INSENSITIVE)
+    void buscarPorNombre(const string& nombre) const {
+        cout << "\nResultados de búsqueda para '" << nombre << "':\n";
+        bool encontrada = false;
+        string nombreLower = toLower(nombre);
+        
+        for (const auto& receta : recetas) {
+            if (toLower(receta->getNombre()).find(nombreLower) != string::npos) {
+                receta->mostrarDetalles();
+                encontrada = true;
+            }
+        }
+        
+        if (!encontrada) {
+            cout << "No se encontraron recetas con ese nombre.\n";
+        }
+    }
+
+    // Método para listar todas las recetas
+    void listarRecetas() const {
+        if (recetas.empty()) {
+            cout << "\nNo hay recetas en el sistema.\n";
+            return;
+        }
+
+        cout << "\n═══════════════════════════════════════════════════\n";
+        cout << "LISTA DE RECETAS (" << recetas.size() << " en total)\n";
+        cout << "═══════════════════════════════════════════════════\n";
+        
+        for (size_t i = 0; i < recetas.size(); i++) {
+            cout << i + 1 << ". " << recetas[i]->getNombre();
+            cout << " [" << recetas[i]->getTipo() << "]";
+            cout << " - " << recetas[i]->getCategoria();
+            cout << " (" << recetas[i]->getTiempoPreparacion() << " min)\n";
+        }
+    }
+
+    // Método para eliminar una receta
+    bool eliminarReceta(size_t indice) {
+        if (indice < 1 || indice > recetas.size()) {
+            return false;
+        }
+        recetas.erase(recetas.begin() + (indice - 1));
+        return true;
+    }
+
+    // Método para obtener receta por índice
+    shared_ptr<Receta> getReceta(size_t indice) const {
+        if (indice < 1 || indice > recetas.size()) {
+            return nullptr;
+        }
+        return recetas[indice - 1];
+    }
+
+    size_t getCantidadRecetas() const {
+        return recetas.size();
+    }
+
+private:
+    // Métodos para persistencia REAL
+    void guardarRecetas() {
+        ofstream archivo(archivoDatos);
+        if (!archivo.is_open()) {
+            cerr << "Error: No se pudo abrir el archivo para guardar.\n";
+            return;
+        }
+
+        // Guardar cada receta
+        for (const auto& receta : recetas) {
+            archivo << receta->toCSV() << endl;
+        }
+
+        archivo.close();
+        cout << "✓ " << recetas.size() << " recetas guardadas en '" << archivoDatos << "'\n";
+    }
+
+    void cargarRecetas() {
+        ifstream archivo(archivoDatos);
+        if (!archivo.is_open()) {
+            cout << "No se encontró archivo de recetas previo. Se creará uno nuevo.\n";
+            return;
+        }
+
+        string linea;
+        int contador = 0;
+        while (getline(archivo, linea)) {
+            if (linea.empty() || linea.find(',') == string::npos) continue;
+            
+            // Determinar tipo de receta
+            size_t pos = linea.find(',');
+            if (pos == string::npos) continue;
+            
+            string tipo = linea.substr(0, pos);
+            shared_ptr<Receta> receta;
+            
+            if (tipo == "SALUDABLE") {
+                auto recetaSaludable = make_shared<RecetaSaludable>();
+                if (recetaSaludable->fromCSV(linea)) {
+                    receta = recetaSaludable;
+                    contador++;
+                }
+            } else if (tipo == "RAPIDA") {
+                auto recetaRapida = make_shared<RecetaRapida>();
+                if (recetaRapida->fromCSV(linea)) {
+                    receta = recetaRapida;
+                    contador++;
+                }
+            } else if (tipo == "BASE") {
+                receta = make_shared<Receta>();
+                if (receta->fromCSV(linea)) {
+                    contador++;
+                } else {
+                    receta = nullptr;
+                }
+            }
+            
+            if (receta) {
+                recetas.push_back(receta);
+            }
+        }
+
+        archivo.close();
+        cout << "✓ Se cargaron " << contador << " recetas del archivo.\n";
     }
 };
 
-// ========== PROGRAMA PRINCIPAL ==========
+// ==============================
+// FUNCIONES AUXILIARES
+// ==============================
+void mostrarMenu() {
+    cout << "\n═══════════════════════════════════════════════════\n";
+    cout << "      SISTEMA DE GESTIÓN DE RECETARIO\n";
+    cout << "═══════════════════════════════════════════════════\n";
+    cout << "1. Agregar nueva receta\n";
+    cout << "2. Listar todas las recetas\n";
+    cout << "3. Buscar receta por nombre\n";
+    cout << "4. Agregar receta saludable\n";
+    cout << "5. Agregar receta rápida\n";
+    cout << "6. Ver detalles de receta\n";
+    cout << "7. Eliminar receta\n";
+    cout << "8. Salir\n";
+    cout << "═══════════════════════════════════════════════════\n";
+}
+
+shared_ptr<Receta> crearRecetaBase() {
+    cout << "\n--- Crear Nueva Receta ---\n";
+    
+    string nombre = leerLinea("Nombre: ");
+    string categoria = leerLinea("Categoría: ");
+    int tiempo = leerEntero("Tiempo de preparación (minutos): ", 1, 480);
+    
+    cout << "Instrucciones (ingrese 'fin' en una línea nueva para terminar):\n";
+    string instrucciones;
+    string linea;
+    while (true) {
+        getline(cin, linea);
+        linea = trim(linea);
+        if (toLower(linea) == "fin") break;
+        instrucciones += linea + "\n";
+    }
+    
+    auto receta = make_shared<Receta>(nombre, categoria, tiempo);
+    receta->setInstrucciones(instrucciones);
+    
+    // Agregar ingredientes
+    char agregarMas;
+    do {
+        cout << "\n--- Agregar Ingrediente ---\n";
+        string nombreIng = leerLinea("Nombre del ingrediente: ");
+        string cantidad = leerLinea("Cantidad: ");
+        string unidad = leerLinea("Unidad (taza, cucharada, gramos, etc.): ");
+        
+        Ingrediente ing(nombreIng, cantidad, unidad);
+        receta->agregarIngrediente(ing);
+        
+        cout << "¿Agregar otro ingrediente? (s/n): ";
+        cin >> agregarMas;
+        cin.ignore();
+        
+    } while (agregarMas == 's' || agregarMas == 'S');
+    
+    return receta;
+}
+
+// ==============================
+// FUNCIÓN PRINCIPAL
+// ==============================
 int main() {
-    cout << "=== SISTEMA DE RECETAS C++ ===\n";
+    GestorRecetas gestor;
+    int opcion;
     
-    // 1. DEMOSTRACIÓN DE COMPOSICIÓN
-    cout << "\n1. CREANDO RECETARIO (Composición)..." << endl;
-    Recetario* familiar = new Recetario("Recetario Familiar");
-    
-    // Crear recetas con herencia
-    Receta* lasagna = new RecetaHorneado("Lasagna", 90, "Media", 45);
-    lasagna->agregarIngrediente(new Ingrediente("Pasta", 250, "g"));
-    lasagna->agregarIngrediente(new Ingrediente("Carne", 500, "g"));
-    lasagna->agregarIngrediente(new Ingrediente("Queso", 200, "g"));
-    
-    Receta* sopa = new RecetaCocina("Sopa de Tomate", 40, "Fácil", 100);
-    sopa->agregarIngrediente(new Ingrediente("Tomates", 6, "unid"));
-    sopa->agregarIngrediente(new Ingrediente("Cebolla", 1, "unid"));
-    
-    // Agregar al recetario (composición)
-    familiar->agregarReceta(lasagna);
-    familiar->agregarReceta(sopa);
-    
-    // Mostrar recetario
-    familiar->mostrar();
-    
-    // 2. DEMOSTRACIÓN DE AGREGACIÓN
-    cout << "\n2. AGREGACIÓN: Chef trabaja con recetarios..." << endl;
-    Chef* chef = new Chef("Marco");
-    chef->trabajarCon(familiar);  // Chef usa el recetario, pero no es dueño
-    
-    // Chef crea una receta especial
-    Receta* especial = chef->crearReceta("horneado");
-    especial->agregarIngrediente(new Ingrediente("Ingrediente Secreto", 100, "g"));
-    familiar->agregarReceta(especial);
-    
-    chef->mostrarTrabajo();
-    
-    // 3. DEMOSTRACIÓN DE HERENCIA Y POLIMORFISMO
-    cout << "\n3. HERENCIA: Buscando por ingrediente..." << endl;
-    auto recetasConQueso = familiar->buscarPorIngrediente("Queso");
-    cout << "Recetas con queso: " << recetasConQueso.size() << endl;
-    
-    // 4. MOSTRAR TODAS LAS RECETAS (polimorfismo)
-    cout << "\n4. LISTA COMPLETA DE RECETAS:" << endl;
-    familiar->mostrar();
-    
-    // 5. LIMPIEZA
-    cout << "\n5. LIMPIANDO MEMORIA..." << endl;
-    
-    // NOTA: No eliminamos 'especial' porque ahora es parte del recetario
-    // El recetario lo eliminará en su destructor
-    
-    delete chef;      // Chef se elimina, pero los recetarios siguen
-    delete familiar;  // Recetario elimina todas sus recetas (composición)
-    
-    cout << "\n=== FIN DEL PROGRAMA ===" << endl;
+    do {
+        mostrarMenu();
+        opcion = leerEntero("Seleccione una opción: ", 1, 8);
+        
+        switch (opcion) {
+            case 1: {
+                auto receta = crearRecetaBase();
+                gestor.agregarReceta(receta);
+                break;
+            }
+            case 2: {
+                gestor.listarRecetas();
+                break;
+            }
+            case 3: {
+                string nombre = leerLinea("Ingrese nombre o parte del nombre a buscar: ");
+                gestor.buscarPorNombre(nombre);
+                break;
+            }
+            case 4: {
+                cout << "\n--- Crear Receta Saludable ---\n";
+                auto recetaBase = crearRecetaBase();
+                
+                int calorias = leerEntero("Calorías por porción: ", 0, 5000);
+                
+                string veganoStr;
+                bool esVegano = false;
+                cout << "¿Es vegano? (s/n): ";
+                getline(cin, veganoStr);
+                if (toLower(veganoStr) == "s") {
+                    esVegano = true;
+                }
+                
+                auto recetaSaludable = make_shared<RecetaSaludable>(
+                    recetaBase->getNombre(),
+                    recetaBase->getCategoria(),
+                    recetaBase->getTiempoPreparacion(),
+                    calorias,
+                    esVegano
+                );
+                recetaSaludable->setInstrucciones(recetaBase->getInstrucciones());
+                
+                for (const auto& ing : recetaBase->getIngredientes()) {
+                    recetaSaludable->agregarIngrediente(ing);
+                }
+                
+                gestor.agregarReceta(recetaSaludable);
+                break;
+            }
+            case 5: {
+                cout << "\n--- Crear Receta Rápida ---\n";
+                auto recetaBase = crearRecetaBase();
+                
+                int dificultad = leerEntero("Nivel de dificultad (1-5): ", 1, 5);
+                
+                auto recetaRapida = make_shared<RecetaRapida>(
+                    recetaBase->getNombre(),
+                    recetaBase->getCategoria(),
+                    recetaBase->getTiempoPreparacion(),
+                    dificultad
+                );
+                recetaRapida->setInstrucciones(recetaBase->getInstrucciones());
+                
+                for (const auto& ing : recetaBase->getIngredientes()) {
+                    recetaRapida->agregarIngrediente(ing);
+                }
+                
+                gestor.agregarReceta(recetaRapida);
+                break;
+            }
+            case 6: {
+                if (gestor.getCantidadRecetas() == 0) {
+                    cout << "\nNo hay recetas en el sistema.\n";
+                    break;
+                }
+                
+                gestor.listarRecetas();
+                size_t indice = leerEntero("\nIngrese el número de receta a ver: ", 1, gestor.getCantidadRecetas());
+                
+                auto receta = gestor.getReceta(indice);
+                if (receta) {
+                    receta->mostrarDetalles();
+                }
+                break;
+            }
+            case 7: {
+                if (gestor.getCantidadRecetas() == 0) {
+                    cout << "\nNo hay recetas para eliminar.\n";
+                    break;
+                }
+                
+                gestor.listarRecetas();
+                size_t indice = leerEntero("\nIngrese el número de receta a eliminar: ", 1, gestor.getCantidadRecetas());
+                
+                string confirmacion;
+                cout << "¿Está seguro de eliminar esta receta? (s/n): ";
+                getline(cin, confirmacion);
+                
+                if (toLower(confirmacion) == "s") {
+                    if (gestor.eliminarReceta(indice)) {
+                        cout << "✓ Receta eliminada exitosamente!\n";
+                    } else {
+                        cout << "✗ Error al eliminar la receta.\n";
+                    }
+                } else {
+                    cout << "Operación cancelada.\n";
+                }
+                break;
+            }
+            case 8: {
+                cout << "\n¡Gracias por usar el Sistema de Gestión de Recetario!\n";
+                cout << "Los datos han sido guardados en 'recetas.csv'.\n";
+                break;
+            }
+        }
+        
+        if (opcion != 8) {
+            cout << "\nPresione Enter para continuar...";
+            cin.get();
+        }
+        
+    } while (opcion != 8);
     
     return 0;
 }
